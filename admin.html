@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Overlimit Bookings — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0d;
+    --card: #16161b;
+    --card-border: #27272f;
+    --field: #1c1c22;
+    --field-border: #34343e;
+    --text: #f2f2f4;
+    --text-dim: #98979f;
+    --text-faint: #6b6a73;
+    --accent: #b98cff;
+    --accent-strong: #9b5cff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-family: 'Bebas Neue', 'Manrope', sans-serif; font-weight: 400; font-size: 34px; letter-spacing: 0.02em; margin: 0 0 24px; }
+  .login-card, .empty-state { max-width: 360px; margin: 80px auto 0; background: var(--card); border: 1px solid var(--card-border); border-radius: 18px; padding: 28px 24px; text-align: center; }
+  .login-card input { width: 100%; background: var(--field); border: 1px solid var(--field-border); border-radius: 12px; padding: 13px 14px; font-size: 15px; color: var(--text); font-family: inherit; margin: 16px 0; }
+  .login-card button { width: 100%; padding: 13px; border: none; border-radius: 999px; background: var(--accent-strong); color: #0a0a0d; font-weight: 800; font-size: 14px; cursor: pointer; }
+  .login-card p.err { color: #ff7676; font-size: 13px; margin-top: 10px; display: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--card-border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  td a { color: var(--accent); text-decoration: none; }
+  .table-wrap { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; overflow-x: auto; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
+  .count { color: var(--text-dim); font-size: 13px; }
+  .refresh-btn { background: var(--field); border: 1px solid var(--field-border); color: var(--text); padding: 9px 16px; border-radius: 999px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Overlimit Bookings — Respostas</h1>
+
+    <div id="loginCard" class="login-card">
+      <p>Digite a senha de administrador</p>
+      <input type="password" id="passwordInput" placeholder="Senha">
+      <button id="loginBtn">Entrar</button>
+      <p class="err" id="loginErr">Senha incorreta.</p>
+    </div>
+
+    <div id="content" class="hidden">
+      <div class="toolbar">
+        <span class="count" id="countLabel"></span>
+        <button class="refresh-btn" id="refreshBtn">Atualizar</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Recebido em</th>
+              <th>Nome artístico</th>
+              <th>Cidade/UF</th>
+              <th>Estilo</th>
+              <th>Instagram</th>
+              <th>Experiência</th>
+              <th>Material</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="emptyState" class="empty-state hidden">
+      <p>Nenhuma resposta ainda.</p>
+    </div>
+  </div>
+
+  <script>
+    const loginCard = document.getElementById('loginCard');
+    const content = document.getElementById('content');
+    const emptyState = document.getElementById('emptyState');
+    const passwordInput = document.getElementById('passwordInput');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginErr = document.getElementById('loginErr');
+    const tableBody = document.getElementById('tableBody');
+    const countLabel = document.getElementById('countLabel');
+    const refreshBtn = document.getElementById('refreshBtn');
+
+    function getToken() {
+      return sessionStorage.getItem('overlimit_admin_token') || '';
+    }
+
+    function setToken(t) {
+      sessionStorage.setItem('overlimit_admin_token', t);
+    }
+
+    async function loadData(token) {
+      const res = await fetch('/api/list', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      if (!res.ok) throw new Error('unauthorized');
+      const { results } = await res.json();
+      return results;
+    }
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      return d.toLocaleString('pt-BR');
+    }
+
+    function render(results) {
+      loginCard.classList.add('hidden');
+      if (!results.length) {
+        content.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+      content.classList.remove('hidden');
+      countLabel.textContent = results.length + (results.length === 1 ? ' resposta' : ' respostas');
+      tableBody.innerHTML = results.map(r => `
+        <tr>
+          <td>${formatDate(r.recebidoEm)}</td>
+          <td>${escapeHtml(r.nome)}</td>
+          <td>${escapeHtml(r.cidade)}</td>
+          <td>${escapeHtml(r.estilo)}</td>
+          <td>${escapeHtml(r.instagram)}</td>
+          <td>${escapeHtml(r.experiencia)}</td>
+          <td><a href="${escapeAttr(r.material)}" target="_blank" rel="noopener">abrir</a></td>
+        </tr>
+      `).join('');
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function escapeAttr(s) {
+      return String(s).replace(/"/g, '&quot;');
+    }
+
+    async function tryLoad(token) {
+      try {
+        const results = await loadData(token);
+        setToken(token);
+        render(results);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    loginBtn.addEventListener('click', async () => {
+      loginErr.style.display = 'none';
+      const ok = await tryLoad(passwordInput.value);
+      if (!ok) loginErr.style.display = 'block';
+    });
+
+    passwordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') loginBtn.click();
+    });
+
+    refreshBtn.addEventListener('click', async () => {
+      const ok = await tryLoad(getToken());
+      if (!ok) {
+        sessionStorage.removeItem('overlimit_admin_token');
+        location.reload();
+      }
+    });
+
+    // Tenta usar um token salvo na sessão do navegador
+    (async () => {
+      const saved = getToken();
+      if (saved) {
+        const ok = await tryLoad(saved);
+        if (!ok) sessionStorage.removeItem('overlimit_admin_token');
+      }
+    })();
+  </script>
+</body>
+</html>
